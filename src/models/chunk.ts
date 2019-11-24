@@ -1,49 +1,14 @@
 import { Moment } from 'moment';
-import { ISO8601Date } from './date-types';
 
-export enum IChunkStatus {
-  Ok,
-  Loading,
-  Missing,
-  Expired
-}
-
-export interface IChunk<T = any> {
-  from: ISO8601Date;
-  to: ISO8601Date;
-  status: IChunkStatus;
-  isLoading: boolean;
-  expiryTime?: ISO8601Date;
-  data?: T;
-}
-
-export interface IChunkInternal<T = any> {
+export interface IChunk<T> {
   from: Moment;
   to: Moment;
-  status: IChunkStatus;
   isLoading: boolean;
   expiryTime?: Moment;
-  data?: T;
+  data: ITimestampedData<T>[];
 }
 
-export class ChunkFactory {
-  public static createMissingChunk<T>(from: ISO8601Date, to: ISO8601Date): IChunk<T> {
-    return {
-      from: from,
-      to: to,
-      status: IChunkStatus.Missing,
-      isLoading: false
-    };
-  }
-
-  public static createChunkFromInternalChunk<T>(internalChunk: IChunkInternal): IChunk<T> {
-    return {
-      from: internalChunk.from.toISOString(),
-      to: internalChunk.to.toISOString(),
-      data: internalChunk.data,
-      expiryTime: internalChunk.expiryTime.toISOString(),
-      isLoading: internalChunk.isLoading,
-      status: internalChunk.status
-    } as IChunk<T>;
-  }
+export interface ITimestampedData<T> { 
+  t: Moment;
+  v: T
 }
