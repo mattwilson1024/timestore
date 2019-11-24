@@ -5,7 +5,7 @@ import { findLastIndex } from './utils/array-utils';
 import { ITimestoreQueryParams } from './models/timestore-query-params';
 import { doRangesIntersect } from './utils/date-range-intersection';
 import { IChunk, ITimestampedData } from './models/chunk';
-import { IBucket, BucketFactory } from './models/bucket';
+import { IBucket, BucketFactory, BucketStatus } from './models/bucket';
 
 export type GetTimestampFunction<T = any> = (dataItem: T) => ISO8601Date;
 
@@ -92,11 +92,20 @@ export class Timestore<T> {
     }
 
     chunks.forEach((chunk, chunkIndex) => {
-      results.push(BucketFactory.createFilledBucketFromChunk(chunk));
+      // Add a bucket for the chunk
+      const status = !chunk.expiryTime || moment().isBefore(chunk.expiryTime) ? BucketStatus.Filled : BucketStatus.Expired;
+      results.push({
+        status: status,
+        from: chunk.from.toISOString(), // TODO: Trim the chunk time if the request doesn't need all of it
+        to: chunk.to.toISOString(),
+        data: chunk.data.map(d => d.v),
+        isLoading: chunk.isLoading,
+        expiryTime: chunk.expiryTime.toISOString()
+      });
 
+      // Add an additional empty bucket if there is a gap between this chunk and the next one
       const isLastChunk = chunkIndex === chunks.length - 1;
       if (!isLastChunk) {
-        // Add additional "missing" chunks if there is a gap between this chunk and the next chunk
         const nextChunk = chunks[chunkIndex + 1];
         if (!chunk.to.isSame(nextChunk.from)) {
           results.push(BucketFactory.createEmptyBucket(chunk.to.clone().add(1, 'millisecond').toISOString(), nextChunk.from.clone().subtract(1, 'millisecond').toISOString()));
@@ -111,5 +120,4 @@ export class Timestore<T> {
 
     return results;
   }
-
 }

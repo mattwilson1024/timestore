@@ -1,17 +1,17 @@
 import { ISO8601Date } from './date-types';
 import { IChunk } from './chunk';
 
-export enum IBucketStatus {
-  Empty,
-  Filled,
-  Loading,
-  Expired
+export enum BucketStatus {
+  Empty = 'Empty',
+  Filled = 'Filled',
+  Loading = 'Loading',
+  Expired = 'Expired'
 }
 
 export interface IBucket<T> {
   from: ISO8601Date;
   to: ISO8601Date;
-  status: IBucketStatus;
+  status: BucketStatus;
   isLoading: boolean;
   expiryTime?: ISO8601Date;
   data?: T[];
@@ -20,7 +20,7 @@ export interface IBucket<T> {
 export class BucketFactory {
   public static createEmptyBucket<T>(from: ISO8601Date, to: ISO8601Date): IBucket<T> {
     return {
-      status: IBucketStatus.Empty,
+      status: BucketStatus.Empty,
       from,
       to,
       isLoading: false
@@ -29,7 +29,7 @@ export class BucketFactory {
 
   public static createFilledBucketFromChunk<T>(chunk: IChunk<T>) {
     return {
-      status: IBucketStatus.Filled,
+      status: BucketStatus.Filled,
       from: chunk.from.toISOString(),
       to: chunk.to.toISOString(),
       data: chunk.data.map(d => d.v),
