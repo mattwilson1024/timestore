@@ -2,7 +2,7 @@ import moment from 'moment';
 
 import { ISO8601Date } from './models/date-types';
 import { findLastIndex } from './utils/array-utils';
-import { IChunkInternal, IChunkStatus, IChunk } from './models/chunk';
+import { IChunkInternal, IChunkStatus, IChunk, ChunkFactory } from './models/chunk';
 import { ITimestoreQueryParams } from './models/timestore-query-params';
 
 export class Timestore<T> {
@@ -49,18 +49,29 @@ export class Timestore<T> {
     // If there are no stored chunks, then return the whole requested range as "missing"
     if (!this._chunks.length) {
       // TODO: Divide the range up into smaller chunks rather then assuming it'll be one big one
-      return [{
-        from: params.from,
-        to: params.to,
-        status: IChunkStatus.Missing,
-        isLoading: false
-      } as IChunk<T>];
+      return [
+        ChunkFactory.createMissingChunk(params.from, params.to)
+      ];
     }
-    else {
-      return [];
+    
+    let results: IChunk<T>[] = [];
+    const firstChunk = this._chunks[0];
+    const lastChunk = this._chunks.slice(-1)[0];
+
+    if (fromMoment.isBefore(firstChunk.from)) {
+      results.push(ChunkFactory.createMissingChunk(params.from, firstChunk.from.toISOString()))
     }
 
+    this._chunks.forEach((chunk, chunkIndex) => {
+      results.push(ChunkFactory.createChunkFromInternalChunk(chunk));
+      // TODO: Add additional "missing" chunks if there is a gap between this chunk and the next chunk
+    });
+
+    if (toMoment.isAfter(lastChunk.to)) {
+      results.push(ChunkFactory.createMissingChunk(lastChunk.to.toISOString(), params.to))
+    }
+
+    return results;
   }
 
-  
 }

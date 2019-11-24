@@ -1,11 +1,11 @@
 import { Timestore } from './timestore';
 import { IChunkStatus } from './models/chunk';
-// import { generateTestData } from './test-data/test-data';
+import { generateTestData } from './test-data/test-data';
 
-const OCT_1= '2019-10-01T00:00:00Z';
+const OCT_START = '2019-10-01T00:00:00Z';
 const NOV_1 = '2019-11-01T00:00:00Z';
 const NOV_30 = '2019-11-30T00:00:00Z';
-const DEC_31= '2019-12-31T00:00:00Z';
+const DEC_31 = '2019-12-31T00:00:00Z';
 
 test('starts empty', () => {
   const timestore = new Timestore();
@@ -23,20 +23,22 @@ test('starts empty', () => {
   expect(chunks[0].data).toBeUndefined();
 });
 
-// test('Allows storing data', () => {
-//   const timestore = new Timestore();
+test('Allows storing data', () => {
+  const timestore = new Timestore();
 
-//   const novData = generateTestData(NOV_1, NOV_30);
+  const novData = generateTestData(NOV_1, NOV_30);
 
-//   timestore.store(NOV_1, NOV_30, novData, 60);
+  timestore.store(NOV_1, NOV_30, novData, 60);
   
-//   const chunks = timestore.query({
-//     from: OCT_1,
-//     to: DEC_31
-//   });
+  const chunks = timestore.query({
+    from: OCT_START,
+    to: DEC_31
+  });
 
-//   expect(chunks.length).toEqual(3);
-//   expect(chunks[0].status).toEqual(IChunkStatus.Missing);
-//   expect(chunks[1].status).toEqual(IChunkStatus.Ok);
-//   expect(chunks[2].status).toEqual(IChunkStatus.Missing);
-// });
+  expect(chunks.length).toEqual(3);
+  expect(chunks[0].status).toEqual(IChunkStatus.Missing);
+  expect(chunks[1].status).toEqual(IChunkStatus.Ok);
+  expect(chunks[2].status).toEqual(IChunkStatus.Missing);
+});
+
+

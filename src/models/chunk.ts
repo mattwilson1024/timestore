@@ -25,3 +25,25 @@ export interface IChunkInternal<T = any> {
   expiryTime?: Moment;
   data?: T;
 }
+
+export class ChunkFactory {
+  public static createMissingChunk<T>(from: ISO8601Date, to: ISO8601Date): IChunk<T> {
+    return {
+      from: from,
+      to: to,
+      status: IChunkStatus.Missing,
+      isLoading: false
+    };
+  }
+
+  public static createChunkFromInternalChunk<T>(internalChunk: IChunkInternal): IChunk<T> {
+    return {
+      from: internalChunk.from.toISOString(),
+      to: internalChunk.to.toISOString(),
+      data: internalChunk.data,
+      expiryTime: internalChunk.expiryTime.toISOString(),
+      isLoading: internalChunk.isLoading,
+      status: internalChunk.status
+    } as IChunk<T>;
+  }
+}
