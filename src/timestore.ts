@@ -1,38 +1,14 @@
 import moment from 'moment';
-import { Moment } from 'moment';
 
 import { ISO8601Date } from './models/date-types';
 import { findLastIndex } from './utils/array-utils';
-
-export enum IChunkStatus {
-  Ok,
-  Loading,
-  Missing,
-  Expired
-}
-
-export interface IChunk<T = any> {
-  from: Moment;
-  to: Moment;
-  status: IChunkStatus;
-  isLoading: boolean;
-  expiryTime?: Moment;
-  data?: T;
-}
-
-export interface ITimestoreBucket {
-  name: string;
-}
-
-export interface ITimestoreQueryParams {
-  from: ISO8601Date,
-  to: ISO8601Date
-}
+import { IChunkInternal, IChunkStatus, IChunk } from './models/chunk';
+import { ITimestoreQueryParams } from './models/timestore-query-params';
 
 export class Timestore<T> {
-  private _chunks: IChunk<T>[] = [];
+  private _chunks: IChunkInternal<T>[] = [];
 
-  private insertChunk(chunkToInsert: IChunk): void {
+  private insertChunk(chunkToInsert: IChunkInternal): void {
     // Example existing chunks:
     // jun1 - jun30
     // aug1 - aug31
@@ -52,7 +28,7 @@ export class Timestore<T> {
   }
 
   public store<T>(from: ISO8601Date, to: ISO8601Date, data: T, expires?: ISO8601Date|number): void {
-    const chunk: IChunk<T> = {
+    const chunk: IChunkInternal<T> = {
       from: moment(from),
       to: moment(to),
       data,
@@ -70,14 +46,12 @@ export class Timestore<T> {
     const fromMoment = moment(params.from);
     const toMoment = moment(params.to);
 
-
     // If there are no stored chunks, then return the whole requested range as "missing"
     if (!this._chunks.length) {
       // TODO: Divide the range up into smaller chunks rather then assuming it'll be one big one
       return [{
-        from: fromMoment,
-        to: toMoment,
-        data: null,
+        from: params.from,
+        to: params.to,
         status: IChunkStatus.Missing,
         isLoading: false
       } as IChunk<T>];
