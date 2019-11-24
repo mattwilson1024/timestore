@@ -1,0 +1,23 @@
+{
+  "name": "timestore",
+  "version": "1.0.0",
+  "main": "dist/timestore.js",
+  "repository": "https://github.com/mattwilson1024/timestore",
+  "author": "Matt Wilson",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "moment": "^2.24.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^24.0.18",
+    "@types/node": "^12.7.7",
+    "jest": "^24.9.0",
+    "ts-jest": "^24.1.0",
+    "ts-node": "^8.4.1",
+    "typescript": "^3.6.3"
+  }
+}
