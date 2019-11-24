@@ -91,6 +91,7 @@ describe('Timestore', () => {
 
 
   // TODO: Handle clipping the returned response to subsets of the stored chunks
+  // TODO: Consider if that's really what you'd actually want - would you also want to know that you have a wider range available??
   test('After populating data for August, querying for a subset of August should return a clipped chunk', () => {
     const timestore = new Timestore();
 
@@ -106,10 +107,11 @@ describe('Timestore', () => {
   });
 
   // TODO: Filter out the chunks that get returned if there is no overlap with the requested range
-  test('Querying for a range where we have no data should return a single "missing" chunk', () => {
+  test('Querying for a range where we have no data should return a single "missing" chunk (any other stored outside of the requested range is ignored)', () => {
     const timestore = new Timestore();
 
     timestore.store(startOf(AUG), endOf(AUG), generateTestData(startOf(AUG), endOf(AUG)), 60);
+    timestore.store(startOf(OCT), endOf(OCT), generateTestData(startOf(OCT), endOf(OCT)), 60);
 
     const chunks = timestore.query({ from: startOf(JAN), to: endOf(JAN) });
 
@@ -117,7 +119,7 @@ describe('Timestore', () => {
 
     expect(chunks[0].status).toEqual(IChunkStatus.Missing);
     expect(chunks[0].from).toEqual(startOf(JAN));
-    expect(chunks[0].to).toEqual(tenthOf(JAN));
+    expect(chunks[0].to).toEqual(endOf(JAN));
   });
 
 
