@@ -1,9 +1,10 @@
 import moment from 'moment';
 
-import { ISO8601Date } from './models/date-types';
+import { ISO8601Date, IDateRange } from './models/date-types';
 import { findLastIndex } from './utils/array-utils';
 import { IChunkInternal, IChunkStatus, IChunk, ChunkFactory } from './models/chunk';
 import { ITimestoreQueryParams } from './models/timestore-query-params';
+import { doRangesIntersect } from './utils/date-range-intersection';
 
 export class Timestore<T> {
   private _chunks: IChunkInternal<T>[] = [];
@@ -52,32 +53,37 @@ export class Timestore<T> {
     const fromMoment = moment(params.from);
     const toMoment = moment(params.to);
 
+    // We only need to considering any chunks that have _any overlap_ with the requested range
+    // e.g. if a stored chunk doesn't overlap at all with the queried range, then we don't want to include it in the results
+    const requestedRange: IDateRange = { start: params.from, end: params.to };
+    const overlappingChunks = this._chunks.filter(chunk => doRangesIntersect(
+      { start: chunk.from.toISOString(), end: chunk.to.toISOString() },
+      requestedRange
+    ));
+
     // If there are no stored chunks, then return the whole requested range as "missing"
-    if (!this._chunks.length) {
+    if (!overlappingChunks.length) {
       // TODO: Divide the range up into smaller chunks rather then assuming it'll be one big one
       return [
         ChunkFactory.createMissingChunk(params.from, params.to)
       ];
     }
-    
-    // TODO: We should only really be considering any chunks that have _any overlap_ with the requested range
-    // e.g. if a stored chunk doesn't overlap at all with the queried range, then ignore it here
-    
+
     let results: IChunk<T>[] = [];
-    const firstChunk = this._chunks[0];
-    const lastChunk = this._chunks.slice(-1)[0];
+    const firstChunk = overlappingChunks[0];
+    const lastChunk = overlappingChunks.slice(-1)[0];
 
     if (fromMoment.isBefore(firstChunk.from)) {
       results.push(ChunkFactory.createMissingChunk(params.from, firstChunk.from.clone().subtract(1, 'millisecond').toISOString()))
     }
 
-    this._chunks.forEach((chunk, chunkIndex) => {
+    overlappingChunks.forEach((chunk, chunkIndex) => {
       results.push(ChunkFactory.createChunkFromInternalChunk(chunk));
 
-      const isLastChunk = chunkIndex === this._chunks.length - 1;
+      const isLastChunk = chunkIndex === overlappingChunks.length - 1;
       if (!isLastChunk) {
         // Add additional "missing" chunks if there is a gap between this chunk and the next chunk
-        const nextChunk = this._chunks[chunkIndex + 1];
+        const nextChunk = overlappingChunks[chunkIndex + 1];
         if (!chunk.to.isSame(nextChunk.from)) {
           results.push(ChunkFactory.createMissingChunk(chunk.to.clone().add(1, 'millisecond').toISOString(), nextChunk.from.clone().subtract(1, 'millisecond').toISOString()));
         }
