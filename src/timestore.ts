@@ -19,8 +19,14 @@ export class Timestore<T> {
     if (!this._chunks.length) { 
       this._chunks.push(chunkToInsert);
     } else {
-      const insertPosition = findLastIndex(this._chunks, chunk => chunkToInsert.from.isBefore(chunk.from));
-      this._chunks.splice(insertPosition, 0, chunkToInsert);
+      const fitsBeforeIndex = findLastIndex(this._chunks, chunk => chunkToInsert.from.isBefore(chunk.from));
+      const belongsAtEnd = fitsBeforeIndex === -1;
+      
+      if (belongsAtEnd) {
+        this._chunks.push(chunkToInsert);
+      } else {
+        this._chunks.splice(fitsBeforeIndex, 0, chunkToInsert);
+      }
 
       // TODO: If there are any chunks before it, shorten them or remove them entirely if this one overlaps
       // TODO: If there are any chunks after it, shorten them or remote them entirely if this one overlaps
@@ -54,21 +60,33 @@ export class Timestore<T> {
       ];
     }
     
+    // TODO: We should only really be considering any chunks that have _any overlap_ with the requested range
+    // e.g. if a stored chunk doesn't overlap at all with the queried range, then ignore it here
+    
     let results: IChunk<T>[] = [];
     const firstChunk = this._chunks[0];
     const lastChunk = this._chunks.slice(-1)[0];
 
     if (fromMoment.isBefore(firstChunk.from)) {
-      results.push(ChunkFactory.createMissingChunk(params.from, firstChunk.from.toISOString()))
+      results.push(ChunkFactory.createMissingChunk(params.from, firstChunk.from.clone().subtract(1, 'millisecond').toISOString()))
     }
 
     this._chunks.forEach((chunk, chunkIndex) => {
       results.push(ChunkFactory.createChunkFromInternalChunk(chunk));
-      // TODO: Add additional "missing" chunks if there is a gap between this chunk and the next chunk
+
+      const isLastChunk = chunkIndex === this._chunks.length - 1;
+      if (!isLastChunk) {
+        // Add additional "missing" chunks if there is a gap between this chunk and the next chunk
+        const nextChunk = this._chunks[chunkIndex + 1];
+        if (!chunk.to.isSame(nextChunk.from)) {
+          results.push(ChunkFactory.createMissingChunk(chunk.to.clone().add(1, 'millisecond').toISOString(), nextChunk.from.clone().subtract(1, 'millisecond').toISOString()));
+        }
+      }
+      
     });
 
     if (toMoment.isAfter(lastChunk.to)) {
-      results.push(ChunkFactory.createMissingChunk(lastChunk.to.toISOString(), params.to))
+      results.push(ChunkFactory.createMissingChunk(lastChunk.to.clone().add(1, 'millisecond').toISOString(), params.to))
     }
 
     return results;

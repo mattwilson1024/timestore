@@ -14,9 +14,17 @@ export const NOV = 10;
 export const DEC = 11;
 
 export function startOf(monthZeroIndexed: number): string {
-  return moment({ month: monthZeroIndexed, year: 2019 }).toISOString();
+  return moment({ date: 1, month: monthZeroIndexed, year: 2019 }).toISOString();
 }
 
 export function endOf(monthZeroIndexed: number): string {
-  return moment({ month: monthZeroIndexed, year: 2019 }).endOf('month').toISOString();
+  return moment({ date: 1, month: monthZeroIndexed, year: 2019 }).endOf('month').toISOString();
+}
+
+export function fifthOf(monthZeroIndexed: number): string {
+  return moment({ date: 5, month: monthZeroIndexed, year: 2019 }).toISOString();
+}
+
+export function tenthOf(monthZeroIndexed: number): string {
+  return moment({ date: 10, month: monthZeroIndexed, year: 2019 }).toISOString();
 }
