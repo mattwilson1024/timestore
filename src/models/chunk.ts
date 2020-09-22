@@ -1,14 +1,15 @@
-import { Moment } from 'moment';
+import { ISO8601Date } from './date-types';
 
 export interface IChunk<T> {
-  from: Moment;
-  to: Moment;
+  from: ISO8601Date;
+  to: ISO8601Date;
   isLoading: boolean;
-  expiryTime?: Moment;
-  data: ITimestampedData<T>[];
+  expiryTime?: ISO8601Date;
+  data?: ITimestampedData<T>[];
 }
 
-export interface ITimestampedData<T> { 
-  t: Moment;
+export interface ITimestampedData<T> {
+  t: ISO8601Date;
   v: T
 }
+
