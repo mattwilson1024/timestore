@@ -1,5 +1,5 @@
 import { Timestore } from './timestore';
-import { AUG, endOf, JUL, NOV, SEP, startOf } from './test-data/months';
+import { AUG, endOf, JAN, JUL, NOV, OCT, SEP, startOf } from './test-data/months';
 import { IExampleDataItem } from './test-data/example-data-item';
 import { SliceStatus } from './models/slice';
 import { generateTestData } from './test-data/test-data';
@@ -43,53 +43,51 @@ describe('Timestore', () => {
     expect(slices[1].to).toEqual(endOf(AUG));
 
     expect(slices[2].status).toEqual(SliceStatus.Empty);
-    expect(slices[2].from).toEqual(startOf(SEP));
+    expect(slices[2].from).toEqual(endOf(AUG));
     expect(slices[2].to).toEqual(endOf(SEP));
   });
 
-  // it('Query results covers the entire contiguous requested range and filling any gaps in the stored data with empty buckets', () => {
-  //   timestore.store(startOf(AUG), endOf(AUG), generateTestData(startOf(AUG), endOf(AUG)), 60);
-  //   timestore.store(startOf(OCT), endOf(OCT), generateTestData(startOf(OCT), endOf(OCT)), 60);
-  //
-  //   const buckets = timestore.query({ from: startOf(JUL), to: endOf(NOV) });
-  //
-  //   expect(buckets.length).toEqual(5);
-  //
-  //   expect(buckets[0].status).toEqual(BucketStatus.Empty);
-  //   expect(buckets[0].from).toEqual(startOf(JUL));
-  //   expect(buckets[0].to).toEqual(endOf(JUL));
-  //
-  //   expect(buckets[1].status).toEqual(BucketStatus.Filled);
-  //   expect(buckets[1].from).toEqual(startOf(AUG));
-  //   expect(buckets[1].to).toEqual(endOf(AUG));
-  //
-  //   expect(buckets[2].status).toEqual(BucketStatus.Empty);
-  //   expect(buckets[2].from).toEqual(startOf(SEP));
-  //   expect(buckets[2].to).toEqual(endOf(SEP));
-  //
-  //   expect(buckets[3].status).toEqual(BucketStatus.Filled);
-  //   expect(buckets[3].from).toEqual(startOf(OCT));
-  //   expect(buckets[3].to).toEqual(endOf(OCT));
-  //
-  //   expect(buckets[4].status).toEqual(BucketStatus.Empty);
-  //   expect(buckets[4].from).toEqual(startOf(NOV));
-  //   expect(buckets[4].to).toEqual(endOf(NOV));
-  // });
-  //
-  //
-  // it('Querying exactly the range for which we have provided data should return one filled bucket', () => {
-  //   timestore.store(startOf(AUG), endOf(AUG), generateTestData(startOf(AUG), endOf(AUG)), 60);
-  //
-  //   const buckets = timestore.query({ from: startOf(AUG), to: endOf(AUG) });
-  //
-  //   expect(buckets.length).toEqual(1);
-  //
-  //   expect(buckets[0].status).toEqual(BucketStatus.Filled);
-  //   expect(buckets[0].from).toEqual(startOf(AUG));
-  //   expect(buckets[0].to).toEqual(endOf(AUG));
-  // });
-  //
-  //
+  it('Query results covers the entire contiguous requested range and filling any gaps in the stored data with empty buckets', () => {
+    timestore.store(startOf(AUG), endOf(AUG), generateTestData(startOf(AUG), endOf(AUG)), 60);
+    timestore.store(startOf(OCT), endOf(OCT), generateTestData(startOf(OCT), endOf(OCT)), 60);
+
+    const slices = timestore.query({ from: startOf(JUL), to: endOf(NOV) });
+
+    expect(slices.length).toEqual(5);
+
+    expect(slices[0].status).toEqual(SliceStatus.Empty);
+    expect(slices[0].from).toEqual(startOf(JUL));
+    expect(slices[0].to).toEqual(endOf(JUL));
+
+    expect(slices[1].status).toEqual(SliceStatus.Filled);
+    expect(slices[1].from).toEqual(startOf(AUG));
+    expect(slices[1].to).toEqual(endOf(AUG));
+
+    expect(slices[2].status).toEqual(SliceStatus.Empty);
+    expect(slices[2].from).toEqual(endOf(AUG));
+    expect(slices[2].to).toEqual(endOf(SEP));
+
+    expect(slices[3].status).toEqual(SliceStatus.Filled);
+    expect(slices[3].from).toEqual(startOf(OCT));
+    expect(slices[3].to).toEqual(endOf(OCT));
+
+    expect(slices[4].status).toEqual(SliceStatus.Empty);
+    expect(slices[4].from).toEqual(endOf(OCT));
+    expect(slices[4].to).toEqual(endOf(NOV));
+  });
+
+  it('Querying exactly the range for which we have provided data should return one filled bucket', () => {
+    timestore.store(startOf(AUG), endOf(AUG), generateTestData(startOf(AUG), endOf(AUG)), 60);
+
+    const slices = timestore.query({ from: startOf(AUG), to: endOf(AUG) });
+
+    expect(slices.length).toEqual(1);
+
+    expect(slices[0].status).toEqual(SliceStatus.Filled);
+    expect(slices[0].from).toEqual(startOf(AUG));
+    expect(slices[0].to).toEqual(endOf(AUG));
+  });
+
   // // it('Querying a range for which we only have data for part of it', () => {
   // //   timestore.store(startOf(AUG), endOf(AUG), generateTestData(startOf(AUG), endOf(AUG)), 60);
   // //
@@ -119,34 +117,34 @@ describe('Timestore', () => {
   // //   expect(buckets[0].from).toEqual(fifthOf(AUG));
   // //   expect(buckets[0].to).toEqual(tenthOf(AUG));
   // // });
-  //
-  // it('Querying for a range where we have no data should return a single empty bucket (any other stored outside of the requested range is ignored)', () => {
-  //   timestore.store(startOf(AUG), endOf(AUG), generateTestData(startOf(AUG), endOf(AUG)), 60);
-  //   timestore.store(startOf(OCT), endOf(OCT), generateTestData(startOf(OCT), endOf(OCT)), 60);
-  //
-  //   const buckets = timestore.query({ from: startOf(JAN), to: endOf(JAN) });
-  //
-  //   expect(buckets.length).toEqual(1);
-  //
-  //   expect(buckets[0].status).toEqual(BucketStatus.Empty);
-  //   expect(buckets[0].from).toEqual(startOf(JAN));
-  //   expect(buckets[0].to).toEqual(endOf(JAN));
-  // });
-  //
+
+  it('Querying for a range where we have no data should return a single empty bucket (any other stored outside of the requested range is ignored)', () => {
+    timestore.store(startOf(AUG), endOf(AUG), generateTestData(startOf(AUG), endOf(AUG)), 60);
+    timestore.store(startOf(OCT), endOf(OCT), generateTestData(startOf(OCT), endOf(OCT)), 60);
+
+    const slices = timestore.query({ from: startOf(JAN), to: endOf(JAN) });
+
+    expect(slices.length).toEqual(1);
+
+    expect(slices[0].status).toEqual(SliceStatus.Empty);
+    expect(slices[0].from).toEqual(startOf(JAN));
+    expect(slices[0].to).toEqual(endOf(JAN));
+  });
+
   // it('Should return a bucket with expired status if the cache time is exceeded', () => {
   //   const cacheLengthSeconds = 60;
   //
   //   timestore.store(startOf(AUG), endOf(AUG), generateTestData(startOf(AUG), endOf(AUG)), cacheLengthSeconds);
   //
-  //   const future = moment().add(cacheLengthSeconds, 'seconds');
+  //   const future = addSeconds(new Date(), cacheLengthSeconds);
   //   jest.spyOn(Date, 'now').mockImplementation(() => future.valueOf());
   //
-  //   const buckets = timestore.query({ from: startOf(AUG), to: endOf(AUG) });
+  //   const slices = timestore.query({ from: startOf(AUG), to: endOf(AUG) });
   //
-  //   expect(buckets.length).toEqual(1);
-  //   expect(buckets[0].status).toEqual(BucketStatus.Expired);
+  //   expect(slices.length).toEqual(1);
+  //   expect(slices[0].status).toEqual(SliceStatus.Expired);
   // });
-  //
+
   // // it('Querying for a range where we have no data should return a single empty bucket (any other stored outside of the requested range is ignored)', () => {
   // //   timestore.store(startOf(JAN), endOf(JAN), generateTestData(startOf(JAN), endOf(JAN)), 60);
   // //   timestore.store(startOf(FEB), endOf(FEB), generateTestData(startOf(FEB), endOf(FEB)), 60);
