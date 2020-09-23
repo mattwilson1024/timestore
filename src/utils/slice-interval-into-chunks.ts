@@ -1,10 +1,4 @@
-import { ISO8601Date } from '../models/date-types';
 import { DateTime, Duration, DurationUnit, Interval } from 'luxon';
-
-export interface SlicedInterval {
-  start: ISO8601Date;
-  end: ISO8601Date;
-}
 
 function createDuration(amount: number, unit: DurationUnit): Duration {
   switch (unit) {
@@ -22,44 +16,35 @@ function createDuration(amount: number, unit: DurationUnit): Duration {
   }
 }
 
-export function sliceIntervalIntoChunks(start: ISO8601Date, end: ISO8601Date, amount: number, unit: DurationUnit, useWholeUnits: boolean = false): SlicedInterval[] {
-  const chunks: SlicedInterval[] = [];
+export function sliceIntervalIntoChunks(inputInterval: Interval, amount: number, unit: DurationUnit, useWholeUnits: boolean = false): Interval[] {
+  const chunks: Interval[] = [];
 
-  const overall = Interval.fromDateTimes(DateTime.fromISO(start, { zone: 'utc' }), DateTime.fromISO(end,{ zone: 'utc' }));
-  // const overall = Interval.fromDateTimes(start, end);
-
-  console.log('startoffset', overall.start.offset);
-  console.log('endoffset', overall.end.offset);
-  console.log('endzone', overall.end.zoneName);
-
-  DateTime.fromISO('', { zone: 'utc' })
-
-  if (overall.end < overall.start) {
+  if (inputInterval.end < inputInterval.start) {
     throw new Error('Cannot split interval into chunks - the end time must be after the start time');
   }
 
-  if (overall.start.equals(overall.end)) {
-    return [{ start: overall.start.toISO(), end: overall.end.toISO() }];
+  if (inputInterval.start.equals(inputInterval.end)) {
+    return [inputInterval];
   }
 
-  let chunkStart: DateTime = overall.start;
+  let chunkStart: DateTime = inputInterval.start;
   let chunkEnd: DateTime;
 
   if (useWholeUnits) { chunkStart = chunkStart.startOf(unit); }
 
-  while (chunkStart < overall.end) {
+  while (chunkStart < inputInterval.end) {
     chunkEnd = chunkStart.plus(createDuration(amount, unit));
 
-    if (chunkStart < overall.start) {
-      chunkStart = overall.start;
+    if (chunkStart < inputInterval.start) {
+      chunkStart = inputInterval.start;
     }
-    if (chunkEnd > overall.end) {
-      chunkEnd = overall.end;
+    if (chunkEnd > inputInterval.end) {
+      chunkEnd = inputInterval.end;
     }
-    chunks.push({
-      start: chunkStart.toISO(),
-      end: chunkEnd.minus(Duration.fromObject({ milliseconds: 1 })).toISO()
-    });
+    chunks.push(Interval.fromDateTimes(
+      chunkStart,
+      chunkEnd.minus(Duration.fromObject({ milliseconds: 1 }))
+    ));
     chunkStart = chunkEnd;
   }
 

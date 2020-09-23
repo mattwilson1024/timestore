@@ -1,22 +1,44 @@
-import { SlicedInterval, sliceIntervalIntoChunks } from './slice-interval-into-chunks';
-import { DateTime, Interval } from 'luxon';
+import { sliceIntervalIntoChunks } from './slice-interval-into-chunks';
+import { DateTime, Duration, Interval } from 'luxon';
+
+const ONE_MILLISECOND = Duration.fromObject({ milliseconds: 1 });
+
+// function assertChunksMatch(chunks: SlicedInterval[], expectedChunks: SlicedInterval[]) {
+//   expect(chunks).toBeDefined();
+//   expect(chunks).toHaveLength(expectedChunks.length);
+//   expectedChunks.forEach((chunk, index) => {
+//     // const expectedChunk = expectedChunks[index];
+//     // expect(isEqual(parseISO(chunk.start), parseISO(expectedChunk.start))).toBe(true);
+//     // expect(isEqual(parseISO(chunk.end), parseISO(expectedChunk.end))).toBe(true);;
+//     // // expect(isEqual(parseISO(chunks[index]), parseISO(expectedChunks[index])).toBe(true);
+//     // expect(chunks[index]).toEqual(expectedChunks[index]);
+//
+//     const expectedChunk = expectedChunks[index];
+//     const chunkInterval = Interval.fromDateTimes(DateTime.fromISO(chunk.start), DateTime.fromISO(chunk.end));
+//     const expectedChunkInterval = Interval.fromDateTimes(DateTime.fromISO(expectedChunk.start), DateTime.fromISO(expectedChunk.end));
+//
+//     expect(chunkInterval.equals(expectedChunkInterval)).toBe(true);
+//   });
+// }
 
 
-function assertChunksMatch(chunks: SlicedInterval[], expectedChunks: SlicedInterval[]) {
+function assertChunksMatch(chunks: Interval[], expectedChunks: Interval[]) {
   expect(chunks).toBeDefined();
   expect(chunks).toHaveLength(expectedChunks.length);
   expectedChunks.forEach((chunk, index) => {
+    expect(chunks[index].equals(expectedChunks[index])).toBe(true);
+
     // const expectedChunk = expectedChunks[index];
     // expect(isEqual(parseISO(chunk.start), parseISO(expectedChunk.start))).toBe(true);
     // expect(isEqual(parseISO(chunk.end), parseISO(expectedChunk.end))).toBe(true);;
     // // expect(isEqual(parseISO(chunks[index]), parseISO(expectedChunks[index])).toBe(true);
     // expect(chunks[index]).toEqual(expectedChunks[index]);
 
-    const expectedChunk = expectedChunks[index];
-    const chunkInterval = Interval.fromDateTimes(DateTime.fromISO(chunk.start), DateTime.fromISO(chunk.end));
-    const expectedChunkInterval = Interval.fromDateTimes(DateTime.fromISO(expectedChunk.start), DateTime.fromISO(expectedChunk.end));
-
-    expect(chunkInterval.equals(expectedChunkInterval)).toBe(true);
+    // const expectedChunk = expectedChunks[index];
+    // const chunkInterval = Interval.fromDateTimes(DateTime.fromISO(chunk.start), DateTime.fromISO(chunk.end));
+    // const expectedChunkInterval = Interval.fromDateTimes(DateTime.fromISO(expectedChunk.start), DateTime.fromISO(expectedChunk.end));
+    //
+    // expect(chunkInterval.equals(expectedChunkInterval)).toBe(true);
   });
 }
 
@@ -51,25 +73,22 @@ describe('sliceIntervalIntoChunks', () => {
   // });
 
   it('should correctly split a 6 month period (12th Feb - 12th July) into 1 month chunks', () => {
-    // const chunks = sliceIntervalIntoChunks(
-    //   DateTime.fromObject({ year: 2019, month: 2, day: 12 }),
-    //   DateTime.fromObject({ year: 2019, month: 7, day: 12 }),
-    //   1, 'months'
-    // );
+    const interval = Interval.fromDateTimes(
+      DateTime.local(2019, 2, 12),
+      DateTime.local(2019, 7, 12),
+    );
 
-    // console.log(DateTime.fromObject({ year: 2019, month: 2, day: 12 }).toUTC().toISO());
-    // console.log(DateTime.fromObject({ year: 2019, month: 7, day: 12 }).toUTC().toISO());
+    const chunks = sliceIntervalIntoChunks(interval, 1, 'months');
 
-    const chunks = sliceIntervalIntoChunks('2019-02-12T00:00:00Z', '2019-07-12T00:00:00Z', 1, 'month');
-
-    console.log(chunks);
+    const chunkStrings = chunks.map(chunk => `${chunk.start.toUTC().toISO()} -> ${chunk.end.toUTC().toISO()} (${chunk.end.toLocaleString(DateTime.DATETIME_FULL)})`);
+    console.log(chunkStrings.join(`\n`));
 
     assertChunksMatch(chunks, [
-      { start: '2019-02-12T00:00:00.000Z', end: '2019-03-11T23:59:59.999Z' },
-      { start: '2019-03-12T00:00:00.000Z', end: '2019-04-11T23:59:59.999Z' },
-      { start: '2019-04-12T00:00:00.000Z', end: '2019-05-11T23:59:59.999Z' },
-      { start: '2019-05-12T00:00:00.000Z', end: '2019-06-11T23:59:59.999Z' },
-      { start: '2019-06-12T00:00:00.000Z', end: '2019-07-11T23:59:59.999Z' }
+      Interval.fromDateTimes(DateTime.local(2019,2, 12), DateTime.local(2019, 3, 12).minus(ONE_MILLISECOND)),
+      Interval.fromDateTimes(DateTime.local(2019,3, 12), DateTime.local(2019, 4, 12).minus(ONE_MILLISECOND)),
+      Interval.fromDateTimes(DateTime.local(2019,4, 12), DateTime.local(2019, 5, 12).minus(ONE_MILLISECOND)),
+      Interval.fromDateTimes(DateTime.local(2019,5, 12), DateTime.local(2019, 6, 12).minus(ONE_MILLISECOND)),
+      Interval.fromDateTimes(DateTime.local(2019,6, 12), DateTime.local(2019, 7, 12).minus(ONE_MILLISECOND))
     ]);
   });
 
