@@ -101,8 +101,9 @@ export class Timestore<T> {
 
     chunks.forEach((chunk, chunkIndex) => {
       // Create a slice to represent the stored chunk
-      const now = new Date();
-      const status = !chunk.expiryTime || isBefore(now, parseISO(chunk.expiryTime)) ? SliceStatus.Filled : SliceStatus.Expired;
+      const now = new Date(Date.now());
+      const hasExpired = chunk.expiryTime && (isAfter(now, parseISO(chunk.expiryTime)) || isEqual(now, parseISO(chunk.expiryTime))) ;
+      const status = hasExpired ? SliceStatus.Expired : SliceStatus.Filled;
       results.push({
         status: status,
         from: chunk.from, // TODO: Trim the chunk time if the request doesn't need all of it
