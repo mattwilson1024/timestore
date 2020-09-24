@@ -1,23 +1,18 @@
-import { ISO8601Date } from './models/date-types';
-import { ITimestoreQueryParams } from './models/timestore-query-params';
+import { DateTime, Duration, Interval } from 'luxon';
 import { IChunk, ITimestampedData } from './models/chunk';
-import {
-  addMilliseconds,
-  addSeconds,
-  areIntervalsOverlapping,
-  formatISO,
-  isAfter,
-  isBefore,
-  isEqual,
-  parseISO,
-  subMilliseconds
-} from 'date-fns';
-import { ISlice, SliceFactory, SliceStatus } from './models/slice';
-import { findLastIndex } from './utils/array-utils';
+import { ISO8601Date } from './models/date-types';
 import { GetTimestampFunction } from './models/get-timestamp-function';
+import { ISlice, SliceFactory, SliceStatus } from './models/slice';
+import { ITimestoreQueryParams } from './models/timestore-query-params';
+import { findLastIndex } from './utils/array-utils';
+import { fromUtcIso, toUtcIso } from './utils/utc-iso-helpers';
+
+const ONE_MILLISECOND = Duration.fromObject({ milliseconds: 1 });
 
 export class Timestore<T> {
   private _chunks: IChunk<T>[] = [];
+
+  public chunks() { return this._chunks; }
 
   constructor(private getTimestampFunction: GetTimestampFunction) {
   }
@@ -32,7 +27,7 @@ export class Timestore<T> {
     if (!this._chunks.length) {
       this._chunks.push(chunkToInsert);
     } else {
-      const fitsBeforeIndex = findLastIndex(this._chunks, chunk => isBefore(parseISO(chunkToInsert.from), parseISO(chunk.from)));
+      const fitsBeforeIndex = findLastIndex(this._chunks, chunk => fromUtcIso(chunkToInsert.from) < fromUtcIso(chunk.from));
       const belongsAtEnd = fitsBeforeIndex === -1;
 
       if (belongsAtEnd) {
@@ -60,18 +55,17 @@ export class Timestore<T> {
     };
 
     if (expires) {
-      const now = new Date();
-      chunk.expiryTime = (typeof expires === 'number') ? formatISO(addSeconds(now, expires)) : expires;
+      chunk.expiryTime = (typeof expires === 'number') ? toUtcIso(DateTime.utc().plus(Duration.fromObject({ seconds: expires }))) : expires;
     }
     this.insertChunk(chunk);
   }
 
   private getChunksWithinInterval(from: ISO8601Date, to: ISO8601Date): IChunk<T>[] {
-    const requestedInterval: Interval = { start: parseISO(from), end: parseISO(to) };
+    const requestedInterval = Interval.fromDateTimes(fromUtcIso(from), fromUtcIso(to));
 
     return this._chunks.filter(chunk => {
-      const chunkInterval: Interval = { start: parseISO(chunk.from), end: parseISO(chunk.to) };
-      return areIntervalsOverlapping(chunkInterval, requestedInterval);
+      const chunkInterval = Interval.fromDateTimes(fromUtcIso(chunk.from), fromUtcIso(chunk.to));
+      return chunkInterval.overlaps(requestedInterval);
     });
   }
 
@@ -92,17 +86,16 @@ export class Timestore<T> {
     const firstChunk = chunks[0];
     const lastChunk = chunks.slice(-1)[0];
 
-    if (isBefore(parseISO(params.from), parseISO(firstChunk.from))) {
+    if (fromUtcIso(params.from) < fromUtcIso(firstChunk.from)) {
       results.push(SliceFactory.createEmptySlice(
         params.from,
-        formatISO(subMilliseconds(parseISO(firstChunk.from), 1))
+        toUtcIso(fromUtcIso(firstChunk.from).minus(ONE_MILLISECOND))
       ));
     }
 
     chunks.forEach((chunk, chunkIndex) => {
       // Create a slice to represent the stored chunk
-      const now = new Date(Date.now());
-      const hasExpired = chunk.expiryTime && (isAfter(now, parseISO(chunk.expiryTime)) || isEqual(now, parseISO(chunk.expiryTime))) ;
+      const hasExpired = chunk.expiryTime && DateTime.utc() >= fromUtcIso(chunk.expiryTime);
       const status = hasExpired ? SliceStatus.Expired : SliceStatus.Filled;
       results.push({
         status: status,
@@ -117,18 +110,21 @@ export class Timestore<T> {
       const isLastChunk = chunkIndex === chunks.length - 1;
       if (!isLastChunk) {
         const nextChunk = chunks[chunkIndex + 1];
-        if (!isEqual(parseISO(chunk.to), parseISO(nextChunk.from))) {
+
+        const thisChunkTo = fromUtcIso(chunk.to);
+        const nextChunkFrom = fromUtcIso(nextChunk.from);
+        if (!thisChunkTo.equals(nextChunkFrom)) {
           results.push(SliceFactory.createEmptySlice(
-            formatISO(addMilliseconds(parseISO(chunk.to), 1)),
-            formatISO(subMilliseconds(parseISO(nextChunk.from), 1))
+            toUtcIso(thisChunkTo.plus(ONE_MILLISECOND)),
+            toUtcIso(nextChunkFrom.minus(ONE_MILLISECOND))
           ));
         }
       }
     });
 
-    if (isAfter(parseISO(params.to), parseISO(lastChunk.to))) {
+    if (fromUtcIso(params.to) > fromUtcIso(lastChunk.to)) {
       results.push(SliceFactory.createEmptySlice(
-        formatISO(addMilliseconds(parseISO(lastChunk.to), 1)),
+        toUtcIso(fromUtcIso(lastChunk.to).plus(ONE_MILLISECOND)),
         params.to
       ));
     }

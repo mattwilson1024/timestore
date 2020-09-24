@@ -12,4 +12,3 @@ export interface ITimestampedData<T> {
   t: ISO8601Date;
   v: T
 }
-
