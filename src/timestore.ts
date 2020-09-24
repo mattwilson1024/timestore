@@ -1,10 +1,11 @@
 import { DateTime, Duration, Interval } from 'luxon';
 import { IChunk, ITimestampedData } from './models/chunk';
 import { ISO8601Date } from './models/date-types';
-import { GetTimestampFunction } from './models/get-timestamp-function';
+import { ITimestoreOptions } from './models/options';
 import { ISlice, SliceFactory, SliceStatus } from './models/slice';
 import { ITimestoreQueryParams } from './models/timestore-query-params';
 import { findLastIndex } from './utils/array-utils';
+import { sliceIntervalIntoChunks } from './utils/slice-interval-into-chunks';
 import { fromUtcIso, toUtcIso } from './utils/utc-iso-helpers';
 
 const ONE_MILLISECOND = Duration.fromObject({ milliseconds: 1 });
@@ -12,9 +13,7 @@ const ONE_MILLISECOND = Duration.fromObject({ milliseconds: 1 });
 export class Timestore<T> {
   private _chunks: IChunk<T>[] = [];
 
-  public chunks() { return this._chunks; }
-
-  constructor(private getTimestampFunction: GetTimestampFunction) {
+  constructor(private options: ITimestoreOptions) {
   }
 
   private insertChunk(chunkToInsert: IChunk<T>): void {
@@ -47,7 +46,7 @@ export class Timestore<T> {
       to,
       data: data.map((dataItem: T) => {
         return {
-          t: this.getTimestampFunction(dataItem),
+          t: this.options.getTimestampFunction(dataItem),
           v: dataItem
         } as ITimestampedData<T>
       }),
@@ -69,6 +68,25 @@ export class Timestore<T> {
     });
   }
 
+  private generateEmptySlices(from: ISO8601Date, to: ISO8601Date): ISlice<T>[] {
+    const interval = Interval.fromDateTimes(fromUtcIso(from), fromUtcIso(to));
+    let timeBlocks: Interval[];
+
+    if (this.options.maxChunkSize) {
+      timeBlocks = sliceIntervalIntoChunks(interval, this.options.maxChunkSize.amount, this.options.maxChunkSize.unit);
+    } else {
+      timeBlocks = [ Interval.fromDateTimes(fromUtcIso(from), fromUtcIso(to)) ];
+    }
+
+    const subSlices: ISlice<T>[] = timeBlocks.map(timeBlock =>
+      SliceFactory.createEmptySlice(
+        toUtcIso(timeBlock.start),
+        toUtcIso(timeBlock.end)
+      )
+    );
+    return subSlices;
+  }
+
   public query(params: ITimestoreQueryParams): ISlice<T>[] {
     // We only need to consider any chunks that have _any overlap_ with the requested interval
     // e.g. if a stored chunk doesn't overlap at all with the queried interval, then we don't want to include it in the results
@@ -76,9 +94,8 @@ export class Timestore<T> {
 
     // If there are no stored chunks, then return the whole requested range as "missing"
     if (!chunks.length) {
-      // TODO: Divide the range up into smaller chunks rather then assuming it'll be one big one
       return [
-        SliceFactory.createEmptySlice(params.from, params.to)
+        ...this.generateEmptySlices(params.from, params.to)
       ];
     }
 
@@ -87,10 +104,15 @@ export class Timestore<T> {
     const lastChunk = chunks.slice(-1)[0];
 
     if (fromUtcIso(params.from) < fromUtcIso(firstChunk.from)) {
-      results.push(SliceFactory.createEmptySlice(
+      const emptySlicesForBeginning = this.generateEmptySlices(
         params.from,
         toUtcIso(fromUtcIso(firstChunk.from).minus(ONE_MILLISECOND))
-      ));
+      )
+      results.push(...emptySlicesForBeginning);
+      // results.push(SliceFactory.createEmptySlice(
+      //   params.from,
+      //   toUtcIso(fromUtcIso(firstChunk.from).minus(ONE_MILLISECOND))
+      // ));
     }
 
     chunks.forEach((chunk, chunkIndex) => {
@@ -114,19 +136,21 @@ export class Timestore<T> {
         const thisChunkTo = fromUtcIso(chunk.to);
         const nextChunkFrom = fromUtcIso(nextChunk.from);
         if (!thisChunkTo.equals(nextChunkFrom)) {
-          results.push(SliceFactory.createEmptySlice(
+          const emptySlicesForGap = this.generateEmptySlices(
             toUtcIso(thisChunkTo.plus(ONE_MILLISECOND)),
             toUtcIso(nextChunkFrom.minus(ONE_MILLISECOND))
-          ));
+          )
+          results.push(...emptySlicesForGap);
         }
       }
     });
 
     if (fromUtcIso(params.to) > fromUtcIso(lastChunk.to)) {
-      results.push(SliceFactory.createEmptySlice(
+      const emptySlicesForEnd = this.generateEmptySlices(
         toUtcIso(fromUtcIso(lastChunk.to).plus(ONE_MILLISECOND)),
         params.to
-      ));
+      )
+      results.push(...emptySlicesForEnd);
     }
 
     return results;

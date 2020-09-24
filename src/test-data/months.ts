@@ -16,17 +16,17 @@ export const NOV = 11;
 export const DEC = 12;
 
 export function startOf(monthOneIndexed: number): ISO8601Date {
-  return toUtcIso(DateTime.local(2020, monthOneIndexed, 1));
+  return toUtcIso(DateTime.utc(2020, monthOneIndexed, 1));
 }
 
 export function endOf(monthOneIndexed: number): ISO8601Date {
-  return toUtcIso(DateTime.local(2020, monthOneIndexed, 1).endOf('month'));
+  return toUtcIso(DateTime.utc(2020, monthOneIndexed, 1).endOf('month'));
 }
 
 export function fifthOf(monthOneIndexed: number): ISO8601Date {
-  return toUtcIso(DateTime.local(2020, monthOneIndexed, 5));
+  return toUtcIso(DateTime.utc(2020, monthOneIndexed, 5));
 }
 
 export function tenthOf(monthOneIndexed: number): ISO8601Date {
-  return toUtcIso(DateTime.local(2020, monthOneIndexed, 10));
+  return toUtcIso(DateTime.utc(2020, monthOneIndexed, 10));
 }

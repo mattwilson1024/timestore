@@ -9,9 +9,9 @@ describe('Timestore', () => {
   let timestore: Timestore<IExampleDataItem>;
 
   beforeEach(() => {
-    timestore = new Timestore<IExampleDataItem>(
-      (dataItem: IExampleDataItem) => dataItem.date
-    );
+    timestore = new Timestore<IExampleDataItem>({
+      getTimestampFunction: (dataItem: IExampleDataItem) => dataItem.date
+    });
   });
 
   it('starts empty', () => {
@@ -145,7 +145,7 @@ describe('Timestore', () => {
     expect(slices.length).toEqual(1);
     expect(slices[0].status).toEqual(SliceStatus.Expired);
   });
-  
+
   // // it('Querying for a range where we have no data should return a single empty bucket (any other stored outside of the requested range is ignored)', () => {
   // //   timestore.store(startOf(JAN), endOf(JAN), generateTestData(startOf(JAN), endOf(JAN)), 60);
   // //   timestore.store(startOf(FEB), endOf(FEB), generateTestData(startOf(FEB), endOf(FEB)), 60);
