@@ -1,4 +1,5 @@
 import { DateTime, Duration, DurationUnit, Interval } from 'luxon';
+import { ONE_MILLISECOND } from '../models/one-millisecond';
 
 function createDuration(amount: number, unit: DurationUnit): Duration {
   switch (unit) {
@@ -43,9 +44,18 @@ export function sliceIntervalIntoChunks(inputInterval: Interval, amount: number,
     }
     chunks.push(Interval.fromDateTimes(
       chunkStart,
-      chunkEnd.minus(Duration.fromObject({ milliseconds: 1 }))
+      chunkEnd.minus(ONE_MILLISECOND)
     ));
     chunkStart = chunkEnd;
+  }
+
+  // To avoid chunks having any overlap, 1ms was subtracted from the end of each chunk
+  // However, we don't want to lose a ms at the end of the overall range so this needs to be added back on to the final item
+  if (chunks.length > 0) {
+    chunks[chunks.length - 1] = Interval.fromDateTimes(
+      chunks[chunks.length - 1].start,
+      chunks[chunks.length - 1].end.plus(ONE_MILLISECOND),
+    )
   }
 
   return chunks;

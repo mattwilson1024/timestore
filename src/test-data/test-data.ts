@@ -13,7 +13,7 @@ export function generateTestData(from: ISO8601Date, to: ISO8601Date): IExampleDa
 
   let dataItems: IExampleDataItem[] = [];
   let day = fromDay;
-  while (day.equals(toDay) || day.equals(toDay)) {
+  while (day <= toDay) {
     dataItems.push({
       date: toUtcIso(day),
       numberOfCatGifs: (day.month * 100) + day.day // e.g. for November, this is month 11 * 100 + day 1 = 1101

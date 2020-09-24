@@ -1,6 +1,7 @@
 import { DateTime, Duration, Interval } from 'luxon';
 import { IChunk, ITimestampedData } from './models/chunk';
 import { ISO8601Date } from './models/date-types';
+import { ONE_MILLISECOND } from './models/one-millisecond';
 import { ITimestoreOptions } from './models/options';
 import { ISlice, SliceFactory, SliceStatus } from './models/slice';
 import { ITimestoreQueryParams } from './models/timestore-query-params';
@@ -8,10 +9,10 @@ import { findLastIndex } from './utils/array-utils';
 import { sliceIntervalIntoChunks } from './utils/slice-interval-into-chunks';
 import { fromUtcIso, toUtcIso } from './utils/utc-iso-helpers';
 
-const ONE_MILLISECOND = Duration.fromObject({ milliseconds: 1 });
-
 export class Timestore<T> {
   private _chunks: IChunk<T>[] = [];
+
+  public get chunks() { return this._chunks}
 
   constructor(private options: ITimestoreOptions) {
   }
@@ -100,21 +101,23 @@ export class Timestore<T> {
     }
 
     let results: ISlice<T>[] = [];
+    let latestSliceWasShortenedByOneMs = false;
     const firstChunk = chunks[0];
     const lastChunk = chunks.slice(-1)[0];
 
+    // Add any empty slices that are required on the beginning of the range
     if (fromUtcIso(params.from) < fromUtcIso(firstChunk.from)) {
       const emptySlicesForBeginning = this.generateEmptySlices(
         params.from,
         toUtcIso(fromUtcIso(firstChunk.from).minus(ONE_MILLISECOND))
       )
-      results.push(...emptySlicesForBeginning);
-      // results.push(SliceFactory.createEmptySlice(
-      //   params.from,
-      //   toUtcIso(fromUtcIso(firstChunk.from).minus(ONE_MILLISECOND))
-      // ));
+      if (emptySlicesForBeginning.length > 0) {
+        results.push(...emptySlicesForBeginning);
+        latestSliceWasShortenedByOneMs = true;
+      }
     }
 
+    // Add slices for each chunk and fill any gaps between the chunks
     chunks.forEach((chunk, chunkIndex) => {
       // Create a slice to represent the stored chunk
       const hasExpired = chunk.expiryTime && DateTime.fromSeconds(Date.now() * 1000) >= fromUtcIso(chunk.expiryTime);
@@ -127,6 +130,7 @@ export class Timestore<T> {
         isLoading: chunk.isLoading,
         expiryTime: chunk.expiryTime
       });
+      latestSliceWasShortenedByOneMs = false;
 
       // Add an additional empty slice if there is a gap between this chunk and the next one
       const isLastChunk = chunkIndex === chunks.length - 1;
@@ -135,12 +139,15 @@ export class Timestore<T> {
 
         const thisChunkTo = fromUtcIso(chunk.to);
         const nextChunkFrom = fromUtcIso(nextChunk.from);
-        if (!thisChunkTo.equals(nextChunkFrom)) {
+        if (Math.abs(thisChunkTo.diff(nextChunkFrom).milliseconds) > 1) {
           const emptySlicesForGap = this.generateEmptySlices(
             toUtcIso(thisChunkTo.plus(ONE_MILLISECOND)),
             toUtcIso(nextChunkFrom.minus(ONE_MILLISECOND))
           )
-          results.push(...emptySlicesForGap);
+          if (emptySlicesForGap.length > 0) {
+            results.push(...emptySlicesForGap);
+            latestSliceWasShortenedByOneMs = false;
+          }
         }
       }
     });
@@ -148,9 +155,18 @@ export class Timestore<T> {
     if (fromUtcIso(params.to) > fromUtcIso(lastChunk.to)) {
       const emptySlicesForEnd = this.generateEmptySlices(
         toUtcIso(fromUtcIso(lastChunk.to).plus(ONE_MILLISECOND)),
-        params.to
+        toUtcIso(fromUtcIso(params.to).minus(ONE_MILLISECOND))
       )
-      results.push(...emptySlicesForEnd);
+      if (emptySlicesForEnd.length > 0) {
+        results.push(...emptySlicesForEnd);
+        latestSliceWasShortenedByOneMs = true;
+      }
+    }
+
+    // To avoid slices having any overlap, 1ms was subtracted from the end of each slice
+    // However, we don't want to lose a ms at the end of the overall results so this needs to be added back on to the final item
+    if (latestSliceWasShortenedByOneMs) {
+      results[results.length - 1].to = toUtcIso(fromUtcIso(results[results.length - 1].to).plus(ONE_MILLISECOND));
     }
 
     return results;

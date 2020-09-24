@@ -30,7 +30,7 @@ describe('sliceIntervalIntoChunks', () => {
     assertChunksMatch(chunks, [
       Interval.fromDateTimes(DateTime.local(2019,2, 1), DateTime.local(2019, 2, 10).endOf('day')),
       Interval.fromDateTimes(DateTime.local(2019,2, 11), DateTime.local(2019, 2, 20).endOf('day')),
-      Interval.fromDateTimes(DateTime.local(2019,2, 21), DateTime.local(2019, 2, 24).endOf('day'))
+      Interval.fromDateTimes(DateTime.local(2019,2, 21), DateTime.local(2019, 2, 25))
     ]);
   });
 
@@ -42,7 +42,7 @@ describe('sliceIntervalIntoChunks', () => {
     const chunks = sliceIntervalIntoChunks(interval, 30, 'days');
 
     assertChunksMatch(chunks, [
-      Interval.fromDateTimes(DateTime.local(2019,2, 1), DateTime.local(2019, 2, 24).endOf('day'))
+      Interval.fromDateTimes(DateTime.local(2019,2, 1), DateTime.local(2019, 2, 25))
     ]);
   });
 
@@ -58,7 +58,7 @@ describe('sliceIntervalIntoChunks', () => {
       Interval.fromDateTimes(DateTime.local(2019,3, 12), DateTime.local(2019, 4, 11).endOf('day')),
       Interval.fromDateTimes(DateTime.local(2019,4, 12), DateTime.local(2019, 5, 11).endOf('day')),
       Interval.fromDateTimes(DateTime.local(2019,5, 12), DateTime.local(2019, 6, 11).endOf('day')),
-      Interval.fromDateTimes(DateTime.local(2019,6, 12), DateTime.local(2019, 7, 11).endOf('day'))
+      Interval.fromDateTimes(DateTime.local(2019,6, 12), DateTime.local(2019, 7, 12))
     ]);
   });
 
@@ -75,7 +75,7 @@ describe('sliceIntervalIntoChunks', () => {
       Interval.fromDateTimes(DateTime.local(2019,4, 1), DateTime.local(2019, 4, 30).endOf('day')),
       Interval.fromDateTimes(DateTime.local(2019,5, 1), DateTime.local(2019, 5, 31).endOf('day')),
       Interval.fromDateTimes(DateTime.local(2019,6, 1), DateTime.local(2019, 6, 30).endOf('day')),
-      Interval.fromDateTimes(DateTime.local(2019,7, 1), DateTime.local(2019, 7, 11).endOf('day'))
+      Interval.fromDateTimes(DateTime.local(2019,7, 1), DateTime.local(2019, 7, 12))
     ]);
   });
 
@@ -87,7 +87,7 @@ describe('sliceIntervalIntoChunks', () => {
     const chunks = sliceIntervalIntoChunks(interval, 1, 'months');
 
     assertChunksMatch(chunks, [
-      Interval.fromDateTimes(DateTime.local(2019,6, 1), DateTime.local(2019, 6, 30).endOf('day'))
+      Interval.fromDateTimes(DateTime.local(2019,6, 1), DateTime.local(2019, 7, 1))
     ]);
   });
 
