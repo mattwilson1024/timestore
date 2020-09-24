@@ -95,7 +95,7 @@ export class Timestore<T> {
 
     chunks.forEach((chunk, chunkIndex) => {
       // Create a slice to represent the stored chunk
-      const hasExpired = chunk.expiryTime && DateTime.utc() >= fromUtcIso(chunk.expiryTime);
+      const hasExpired = chunk.expiryTime && DateTime.fromSeconds(Date.now() * 1000) >= fromUtcIso(chunk.expiryTime);
       const status = hasExpired ? SliceStatus.Expired : SliceStatus.Filled;
       results.push({
         status: status,
