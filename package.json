@@ -12,11 +12,11 @@
     "test:watch": "jest --watch"
   },
   "dependencies": {
-    "@types/luxon": "1.25.0",
     "luxon": "1.25.0"
   },
   "devDependencies": {
     "@types/jest": "26.0.14",
+    "@types/luxon": "1.25.0",
     "@types/node": "14.11.2",
     "jest": "26.4.2",
     "ts-jest": "26.4.0",
