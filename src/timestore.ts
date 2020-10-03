@@ -1,18 +1,20 @@
-import moment from 'moment';
-
-import { ISO8601Date, IDateRange } from './models/date-types';
-import { findLastIndex } from './utils/array-utils';
-import { ITimestoreQueryParams } from './models/timestore-query-params';
-import { doRangesIntersect } from './utils/date-range-intersection';
+import { DateTime, Duration, Interval } from 'luxon';
 import { IChunk, ITimestampedData } from './models/chunk';
-import { IBucket, BucketFactory, BucketStatus } from './models/bucket';
-
-export type GetTimestampFunction<T = any> = (dataItem: T) => ISO8601Date;
+import { ISO8601Date } from './models/date-types';
+import { ONE_MILLISECOND } from './models/one-millisecond';
+import { ITimestoreOptions } from './models/options';
+import { ISlice, SliceFactory, SliceStatus } from './models/slice';
+import { ITimestoreQueryParams } from './models/timestore-query-params';
+import { findLastIndex } from './utils/array-utils';
+import { sliceIntervalIntoChunks } from './utils/slice-interval-into-chunks';
+import { fromUtcIso, toUtcIso } from './utils/utc-iso-helpers';
 
 export class Timestore<T> {
   private _chunks: IChunk<T>[] = [];
 
-  constructor(private getTimestampFunction: GetTimestampFunction) {
+  public get chunks() { return this._chunks}
+
+  constructor(private options: ITimestoreOptions) {
   }
 
   private insertChunk(chunkToInsert: IChunk<T>): void {
@@ -22,12 +24,12 @@ export class Timestore<T> {
     // dec1 - dec31
     // inserting a chunk "oct1 - oct30" would add it at index 2
 
-    if (!this._chunks.length) { 
+    if (!this._chunks.length) {
       this._chunks.push(chunkToInsert);
     } else {
-      const fitsBeforeIndex = findLastIndex(this._chunks, chunk => chunkToInsert.from.isBefore(chunk.from));
+      const fitsBeforeIndex = findLastIndex(this._chunks, chunk => fromUtcIso(chunkToInsert.from) < fromUtcIso(chunk.from));
       const belongsAtEnd = fitsBeforeIndex === -1;
-      
+
       if (belongsAtEnd) {
         this._chunks.push(chunkToInsert);
       } else {
@@ -41,11 +43,11 @@ export class Timestore<T> {
 
   public store(from: ISO8601Date, to: ISO8601Date, data: T[], expires?: ISO8601Date|number): void {
     const chunk: IChunk<T> = {
-      from: moment(from),
-      to: moment(to),
+      from,
+      to,
       data: data.map((dataItem: T) => {
         return {
-          t: moment(this.getTimestampFunction(dataItem)),
+          t: this.options.getTimestampFunction(dataItem),
           v: dataItem
         } as ITimestampedData<T>
       }),
@@ -53,69 +55,118 @@ export class Timestore<T> {
     };
 
     if (expires) {
-      chunk.expiryTime = (typeof expires === 'number') ? moment().add(expires, 'seconds') : moment(expires);
+      chunk.expiryTime = (typeof expires === 'number') ? toUtcIso(DateTime.utc().plus(Duration.fromObject({ seconds: expires }))) : expires;
     }
     this.insertChunk(chunk);
   }
 
-  private getChunksWithinPeriod(from: ISO8601Date, to: ISO8601Date): IChunk<T>[] {
-    const requestedRange: IDateRange = { start: from, end: to };
-    return this._chunks.filter(chunk => doRangesIntersect(
-      { start: chunk.from.toISOString(), end: chunk.to.toISOString() },
-      requestedRange
-    ));
+  private getChunksWithinInterval(from: ISO8601Date, to: ISO8601Date): IChunk<T>[] {
+    const requestedInterval = Interval.fromDateTimes(fromUtcIso(from), fromUtcIso(to));
+
+    return this._chunks.filter(chunk => {
+      const chunkInterval = Interval.fromDateTimes(fromUtcIso(chunk.from), fromUtcIso(chunk.to));
+      return chunkInterval.overlaps(requestedInterval);
+    });
   }
 
-  public query(params: ITimestoreQueryParams): IBucket<T>[] {
-    const fromMoment = moment(params.from);
-    const toMoment = moment(params.to);
+  private generateEmptySlices(from: ISO8601Date, to: ISO8601Date): ISlice<T>[] {
+    const interval = Interval.fromDateTimes(fromUtcIso(from), fromUtcIso(to));
+    let timeBlocks: Interval[];
 
-    // We only need to considering any chunks that have _any overlap_ with the requested range
-    // e.g. if a stored chunk doesn't overlap at all with the queried range, then we don't want to include it in the results
-    const chunks = this.getChunksWithinPeriod(params.from, params.to);
+    if (this.options.maxChunkSize) {
+      timeBlocks = sliceIntervalIntoChunks(interval, this.options.maxChunkSize.amount, this.options.maxChunkSize.unit);
+    } else {
+      timeBlocks = [ Interval.fromDateTimes(fromUtcIso(from), fromUtcIso(to)) ];
+    }
+
+    const subSlices: ISlice<T>[] = timeBlocks.map(timeBlock =>
+      SliceFactory.createEmptySlice(
+        toUtcIso(timeBlock.start),
+        toUtcIso(timeBlock.end)
+      )
+    );
+    return subSlices;
+  }
+
+  public query(params: ITimestoreQueryParams): ISlice<T>[] {
+    // We only need to consider any chunks that have _any overlap_ with the requested interval
+    // e.g. if a stored chunk doesn't overlap at all with the queried interval, then we don't want to include it in the results
+    const chunks = this.getChunksWithinInterval(params.from, params.to);
 
     // If there are no stored chunks, then return the whole requested range as "missing"
     if (!chunks.length) {
-      // TODO: Divide the range up into smaller chunks rather then assuming it'll be one big one
       return [
-        BucketFactory.createEmptyBucket(params.from, params.to)
+        ...this.generateEmptySlices(params.from, params.to)
       ];
     }
 
-    let results: IBucket<T>[] = [];
+    let results: ISlice<T>[] = [];
+    let latestSliceWasShortenedByOneMs = false;
     const firstChunk = chunks[0];
     const lastChunk = chunks.slice(-1)[0];
 
-    if (fromMoment.isBefore(firstChunk.from)) {
-      results.push(BucketFactory.createEmptyBucket(params.from, firstChunk.from.clone().subtract(1, 'millisecond').toISOString())
-      );
+    // Add any empty slices that are required on the beginning of the range
+    if (fromUtcIso(params.from) < fromUtcIso(firstChunk.from)) {
+      const emptySlicesForBeginning = this.generateEmptySlices(
+        params.from,
+        toUtcIso(fromUtcIso(firstChunk.from).minus(ONE_MILLISECOND))
+      )
+      if (emptySlicesForBeginning.length > 0) {
+        results.push(...emptySlicesForBeginning);
+        latestSliceWasShortenedByOneMs = true;
+      }
     }
 
+    // Add slices for each chunk and fill any gaps between the chunks
     chunks.forEach((chunk, chunkIndex) => {
-      // Add a bucket for the chunk
-      const status = !chunk.expiryTime || moment().isBefore(chunk.expiryTime) ? BucketStatus.Filled : BucketStatus.Expired;
+      // Create a slice to represent the stored chunk
+      const hasExpired = chunk.expiryTime && DateTime.fromSeconds(Date.now() * 1000) >= fromUtcIso(chunk.expiryTime);
+      const status = hasExpired ? SliceStatus.Expired : SliceStatus.Filled;
       results.push({
         status: status,
-        from: chunk.from.toISOString(), // TODO: Trim the chunk time if the request doesn't need all of it
-        to: chunk.to.toISOString(),
+        from: chunk.from, // TODO: Trim the chunk time if the request doesn't need all of it
+        to: chunk.to,
         data: chunk.data.map(d => d.v),
         isLoading: chunk.isLoading,
-        expiryTime: chunk.expiryTime.toISOString()
+        expiryTime: chunk.expiryTime
       });
+      latestSliceWasShortenedByOneMs = false;
 
-      // Add an additional empty bucket if there is a gap between this chunk and the next one
+      // Add an additional empty slice if there is a gap between this chunk and the next one
       const isLastChunk = chunkIndex === chunks.length - 1;
       if (!isLastChunk) {
         const nextChunk = chunks[chunkIndex + 1];
-        if (!chunk.to.isSame(nextChunk.from)) {
-          results.push(BucketFactory.createEmptyBucket(chunk.to.clone().add(1, 'millisecond').toISOString(), nextChunk.from.clone().subtract(1, 'millisecond').toISOString()));
+
+        const thisChunkTo = fromUtcIso(chunk.to);
+        const nextChunkFrom = fromUtcIso(nextChunk.from);
+        if (Math.abs(thisChunkTo.diff(nextChunkFrom).milliseconds) > 1) {
+          const emptySlicesForGap = this.generateEmptySlices(
+            toUtcIso(thisChunkTo.plus(ONE_MILLISECOND)),
+            toUtcIso(nextChunkFrom.minus(ONE_MILLISECOND))
+          )
+          if (emptySlicesForGap.length > 0) {
+            results.push(...emptySlicesForGap);
+            latestSliceWasShortenedByOneMs = false;
+          }
         }
       }
-      
     });
 
-    if (toMoment.isAfter(lastChunk.to)) {
-      results.push(BucketFactory.createEmptyBucket(lastChunk.to.clone().add(1, 'millisecond').toISOString(), params.to))
+    if (fromUtcIso(params.to) > fromUtcIso(lastChunk.to)) {
+      const emptySlicesForEnd = this.generateEmptySlices(
+        toUtcIso(fromUtcIso(lastChunk.to).plus(ONE_MILLISECOND)),
+        toUtcIso(fromUtcIso(params.to).minus(ONE_MILLISECOND))
+      )
+      if (emptySlicesForEnd.length > 0) {
+        results.push(...emptySlicesForEnd);
+        latestSliceWasShortenedByOneMs = true;
+      }
+    }
+
+    // To avoid slices having any overlap, 1ms was subtracted from the end of each slice
+    // However, we don't want to lose a ms at the end of the overall results so this needs to be added back on to the final item
+    if (latestSliceWasShortenedByOneMs) {
+      results[results.length - 1].to = toUtcIso(fromUtcIso(results[results.length - 1].to).plus(ONE_MILLISECOND));
     }
 
     return results;

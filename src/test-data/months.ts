@@ -1,30 +1,32 @@
-import moment = require('moment');
+import { DateTime } from 'luxon';
+import { ISO8601Date } from '../models/date-types';
+import { toUtcIso } from '../utils/utc-iso-helpers';
 
-export const JAN = 0;
-export const FEB = 1;
-export const MAR = 2;
-export const APR = 3;
-export const MAY = 4;
-export const JUN = 5;
-export const JUL = 6;
-export const AUG = 7;
-export const SEP = 8;
-export const OCT = 9;
-export const NOV = 10;
-export const DEC = 11;
+export const JAN = 1;
+export const FEB = 2;
+export const MAR = 3;
+export const APR = 4;
+export const MAY = 5;
+export const JUN = 6;
+export const JUL = 7;
+export const AUG = 8;
+export const SEP = 9;
+export const OCT = 10;
+export const NOV = 11;
+export const DEC = 12;
 
-export function startOf(monthZeroIndexed: number): string {
-  return moment({ date: 1, month: monthZeroIndexed, year: 2019 }).toISOString();
+export function startOf(monthOneIndexed: number): ISO8601Date {
+  return toUtcIso(DateTime.utc(2020, monthOneIndexed, 1));
 }
 
-export function endOf(monthZeroIndexed: number): string {
-  return moment({ date: 1, month: monthZeroIndexed, year: 2019 }).endOf('month').toISOString();
+export function endOf(monthOneIndexed: number): ISO8601Date {
+  return toUtcIso(DateTime.utc(2020, monthOneIndexed, 1).endOf('month'));
 }
 
-export function fifthOf(monthZeroIndexed: number): string {
-  return moment({ date: 5, month: monthZeroIndexed, year: 2019 }).toISOString();
+export function fifthOf(monthOneIndexed: number): ISO8601Date {
+  return toUtcIso(DateTime.utc(2020, monthOneIndexed, 5));
 }
 
-export function tenthOf(monthZeroIndexed: number): string {
-  return moment({ date: 10, month: monthZeroIndexed, year: 2019 }).toISOString();
+export function tenthOf(monthOneIndexed: number): ISO8601Date {
+  return toUtcIso(DateTime.utc(2020, monthOneIndexed, 10));
 }
