@@ -1,7 +1,8 @@
 {
   "name": "timestore",
   "version": "1.0.0",
-  "main": "dist/timestore.js",
+  "main": "dist/public-api.js",
+  "types": "dist/public-api.d.ts",
   "repository": "https://github.com/mattwilson1024/timestore",
   "author": "Matt Wilson",
   "license": "MIT",
